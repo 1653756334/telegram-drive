@@ -1,93 +1,93 @@
-# Telegram Drive Backend v2.0
+# Telegram Drive 后端 v2.0
 
-A modern, well-architected file storage system using Telegram as the backend storage provider.
+一个现代化、架构良好的文件存储系统，使用 Telegram 作为后端存储提供商。
 
-## 🏗️ Architecture
+## 🏗️ 架构设计
 
-This project follows **Domain-Driven Design (DDD)** principles with a **Clean Architecture** approach:
+本项目遵循 **领域驱动设计 (DDD)** 原则和 **整洁架构** 方法：
 
 ```
 app/
-├── config/           # Configuration layer
-├── core/             # Core utilities (security, exceptions, dependencies)
-├── domain/           # Business logic layer
-│   ├── entities/     # Domain entities (User, Node, Channel)
-│   ├── repositories/ # Repository interfaces
-│   └── services/     # Domain services
-├── application/      # Application layer
-│   ├── schemas/      # Pydantic models for API
-│   └── use_cases/    # Application use cases
-├── infrastructure/   # Infrastructure layer
-│   ├── database/     # Database models and repositories
-│   └── telegram/     # Telegram client integration
-└── presentation/     # Presentation layer
-    ├── api/          # REST API routes
-    └── middleware/   # HTTP middleware
+├── config/           # 配置层
+├── core/             # 核心工具 (安全、异常、依赖)
+├── domain/           # 业务逻辑层
+│   ├── entities/     # 领域实体 (User, Node, Channel)
+│   ├── repositories/ # 仓储接口
+│   └── services/     # 领域服务
+├── application/      # 应用层
+│   ├── schemas/      # API 的 Pydantic 模型
+│   └── use_cases/    # 应用用例
+├── infrastructure/   # 基础设施层
+│   ├── database/     # 数据库模型和仓储
+│   └── telegram/     # Telegram 客户端集成
+└── presentation/     # 表现层
+    ├── api/          # REST API 路由
+    └── middleware/   # HTTP 中间件
 ```
 
-## 🎯 Key Principles
+## 🎯 核心原则
 
-### High Cohesion, Low Coupling
-- **Domain Layer**: Contains pure business logic, no external dependencies
-- **Application Layer**: Orchestrates use cases, depends only on domain
-- **Infrastructure Layer**: Implements external concerns (database, Telegram)
-- **Presentation Layer**: HTTP API, depends on application layer
+### 高内聚，低耦合
+- **领域层**: 包含纯业务逻辑，无外部依赖
+- **应用层**: 编排用例，仅依赖领域层
+- **基础设施层**: 实现外部关注点（数据库、Telegram）
+- **表现层**: HTTP API，依赖应用层
 
-### Dependency Inversion
-- High-level modules don't depend on low-level modules
-- Both depend on abstractions (interfaces)
-- Repository pattern abstracts data access
+### 依赖倒置
+- 高层模块不依赖低层模块
+- 两者都依赖抽象（接口）
+- 仓储模式抽象数据访问
 
-### Single Responsibility
-- Each class/module has one reason to change
-- Clear separation of concerns across layers
+### 单一职责
+- 每个类/模块只有一个变更原因
+- 各层之间关注点清晰分离
 
-## 🚀 Features
+## 🚀 功能特性
 
-### Core Functionality
-- **File Management**: Upload, download, move, rename, delete files
-- **Directory Structure**: Hierarchical folder organization
-- **Deduplication**: Automatic file deduplication by checksum
-- **Soft Delete**: Recycle bin functionality
-- **Large File Support**: Handles files up to 2GB via user client
+### 核心功能
+- **文件管理**: 上传、下载、移动、重命名、删除文件
+- **目录结构**: 分层文件夹组织
+- **去重处理**: 基于校验和的自动文件去重
+- **软删除**: 回收站功能
+- **大文件支持**: 通过用户客户端处理最大 2GB 的文件
 
-### Technical Features
-- **Modern Python**: Type hints, async/await, Pydantic v2
-- **Database**: PostgreSQL with SQLAlchemy 2.0
-- **API**: FastAPI with automatic OpenAPI documentation
-- **Security**: Encrypted session storage, optional API tokens
-- **Error Handling**: Comprehensive exception hierarchy
-- **Logging**: Structured logging with context
+### 技术特性
+- **现代 Python**: 类型提示、async/await、Pydantic v2
+- **数据库**: PostgreSQL 配合 SQLAlchemy 2.0
+- **API**: FastAPI 自动生成 OpenAPI 文档
+- **安全性**: 加密会话存储，可选 API 令牌
+- **错误处理**: 全面的异常层次结构
+- **日志记录**: 带上下文的结构化日志
 
-## 📦 Installation
+## 📦 安装
 
-1. **Clone and setup**:
+1. **克隆和设置**:
 ```bash
 cd backend
 pip install -r requirements.txt
 ```
 
-2. **Configure environment**:
+2. **配置环境**:
 ```bash
 cp .env.example .env
-# Edit .env with your settings
+# 编辑 .env 文件配置你的设置
 ```
 
-3. **Run migrations**:
+3. **运行数据库迁移**:
 ```bash
 alembic upgrade head
 ```
 
-4. **Start server**:
+4. **启动服务器**:
 ```bash
 python run.py
-# or
+# 或者
 uvicorn app.main:app --reload
 ```
 
-## 🔧 Configuration
+## 🔧 配置
 
-Environment variables (prefix: `TGDRIVE_`):
+环境变量（前缀：`TGDRIVE_`）：
 
 ```env
 # Telegram API
@@ -95,107 +95,15 @@ TGDRIVE_API_ID=your_api_id
 TGDRIVE_API_HASH=your_api_hash
 TGDRIVE_BOT_TOKEN=your_bot_token
 
-# Security
+# 安全设置
 TGDRIVE_SESSION_SECRET=your_secret_key
 TGDRIVE_API_TOKEN=optional_api_token
 
-# Database
+# 数据库
 TGDRIVE_DATABASE_URL=postgresql+asyncpg://user:pass@localhost/db
 
-# Storage
+# 存储
 TGDRIVE_STORAGE_CHANNEL_USERNAME=@your_channel
-# OR
+# 或者
 TGDRIVE_STORAGE_CHANNEL_ID=-100xxxxxxxxx
-
-# Application
-TGDRIVE_DEBUG=false
-TGDRIVE_CORS_ORIGINS=["*"]
 ```
-
-## 📚 API Documentation
-
-When running in debug mode, visit:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-### Key Endpoints
-
-#### Authentication
-- `POST /api/v1/auth/send-code` - Send login verification code
-- `POST /api/v1/auth/verify-code` - Verify code and login
-- `GET /api/v1/auth/me` - Get current user info
-
-#### Files
-- `GET /api/v1/files/` - List directory contents
-- `POST /api/v1/files/upload` - Upload file
-- `GET /api/v1/files/id/{file_id}/download` - Download file
-- `POST /api/v1/files/id/{file_id}/move` - Move/rename file
-- `DELETE /api/v1/files/id/{file_id}` - Delete file
-
-## 🧪 Testing
-
-```bash
-# Run tests
-pytest
-
-# Run with coverage
-pytest --cov=app_new
-
-# Run specific test
-pytest tests/test_domain/test_entities.py
-```
-
-## 🔄 Migration from v1.0
-
-The new architecture is designed to be backward compatible. To migrate:
-
-1. **Database**: Existing database schema is compatible
-2. **API**: Endpoints remain the same, responses may have additional fields
-3. **Configuration**: Same environment variables
-
-## 🛠️ Development
-
-### Adding New Features
-
-1. **Domain First**: Define entities and repository interfaces
-2. **Use Cases**: Implement business logic in application layer
-3. **Infrastructure**: Implement repository and external integrations
-4. **API**: Add presentation layer endpoints
-5. **Tests**: Write comprehensive tests for each layer
-
-### Code Style
-
-- **Type Hints**: All functions must have type annotations
-- **Docstrings**: All public methods need docstrings
-- **Error Handling**: Use custom exceptions, not generic ones
-- **Async/Await**: Prefer async patterns for I/O operations
-
-## 📈 Performance
-
-- **Connection Pooling**: SQLAlchemy async engine with connection pooling
-- **Lazy Loading**: Efficient database queries with proper relationships
-- **Caching**: Settings cached with `@lru_cache`
-- **Streaming**: Large file downloads use streaming responses
-
-## 🔒 Security
-
-- **Session Encryption**: All Telegram sessions encrypted at rest
-- **API Authentication**: Optional token-based API access
-- **Input Validation**: Pydantic models validate all inputs
-- **SQL Injection**: SQLAlchemy ORM prevents SQL injection
-- **CORS**: Configurable CORS origins
-
-## 📊 Monitoring
-
-- **Health Check**: `/health` endpoint for monitoring
-- **Structured Logging**: JSON logs with request context
-- **Error Tracking**: Comprehensive exception handling
-- **Metrics**: Ready for Prometheus integration
-
-## 🤝 Contributing
-
-1. Follow the established architecture patterns
-2. Write tests for new functionality
-3. Update documentation for API changes
-4. Use conventional commit messages
-
