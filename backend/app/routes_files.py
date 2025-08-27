@@ -434,9 +434,97 @@ async def list_entries(path: str = Query("/"), db: AsyncSession = Depends(get_db
     return await list_directory_entities(db, user_row.id, path)
 
 
+async def _try_download_with_client(client, channel_identifier, message_id):
+    """Helper function to download file with given client and channel identifier"""
+    try:
+        print(f"DEBUG: Trying to download with channel identifier: {channel_identifier}")
+        msg_obj = await client.get_messages(chat_id=channel_identifier, message_ids=message_id)
+        if isinstance(msg_obj, list):
+            msg_obj = msg_obj[0]
+        data = await client.download_media(msg_obj, in_memory=True)
+        return _to_bytes(data)
+    except Exception as e:
+        print(f"DEBUG: Download failed with {channel_identifier}: {e}")
+        return None
+
+
+async def _get_channel_identifiers(db: AsyncSession):
+    """Get all possible channel identifiers (ID and usernames)"""
+    identifiers = []
+
+    # Get from database
+    from .services import get_storage_channel_info
+    channel_info = await get_storage_channel_info(db)
+    if channel_info:
+        # Add channel ID
+        identifiers.append(channel_info[0])
+        # Add username if available
+        if channel_info[1]:
+            identifiers.append(channel_info[1])
+
+    # Add from config if not already included
+    settings = get_settings()
+    if settings.storage_channel_username:
+        username = settings.storage_channel_username.strip()
+        if not username.startswith('@'):
+            username = '@' + username
+        if username not in identifiers:
+            identifiers.append(username)
+
+    return identifiers
+
+
+async def _download_with_bot(file_record, db: AsyncSession):
+    """Try downloading with bot client using all available channel identifiers"""
+    clients = await telegram_manager.start()
+    identifiers = await _get_channel_identifiers(db)
+
+    for identifier in identifiers:
+        print(f"DEBUG: Bot trying identifier: {identifier}")
+        raw = await _try_download_with_client(clients.bot, identifier, file_record.telegram_message_id)
+        if raw:
+            return raw
+    return None
+
+
+async def _download_with_user(file_record, db: AsyncSession):
+    """Try downloading with independent user client using all available channel identifiers"""
+    session_string = await get_latest_session(db)
+    if not session_string:
+        return None
+
+    settings = get_settings()
+    user = Client(
+        name="tgdrive-download-user",
+        api_id=settings.api_id,
+        api_hash=settings.api_hash,
+        session_string=session_string,
+        in_memory=True,
+    )
+
+    try:
+        await user.start()
+        print("DEBUG: Independent user client started for download")
+
+        identifiers = await _get_channel_identifiers(db)
+        for identifier in identifiers:
+            print(f"DEBUG: User client trying identifier: {identifier}")
+            raw = await _try_download_with_client(user, identifier, file_record.telegram_message_id)
+            if raw:
+                return raw
+        return None
+
+    finally:
+        try:
+            await user.stop()
+            print("DEBUG: Independent user client stopped")
+        except Exception as e:
+            print(f"DEBUG: Error stopping download user client: {e}")
+
+
 @router.get("/id/{file_id}/download")
 async def download_by_id(file_id: int, db: AsyncSession = Depends(get_db)):
-    # locate file
+    # Locate file
     from sqlalchemy import select
     from .models import File
 
@@ -445,32 +533,10 @@ async def download_by_id(file_id: int, db: AsyncSession = Depends(get_db)):
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
 
-    clients = await telegram_manager.start()
-
-    raw: bytes | None = None
-
-    # Try bot
-    try:
-        msg_obj = await clients.bot.get_messages(chat_id=f.telegram_channel_id, message_ids=f.telegram_message_id)
-        if isinstance(msg_obj, list):
-            msg_obj = msg_obj[0]
-        data = await clients.bot.download_media(msg_obj, in_memory=True)
-        raw = _to_bytes(data)
-    except Exception:
-        raw = None
-
-    # Fallback to user
+    # Try downloading with bot first, then user client
+    raw = await _download_with_bot(f, db)
     if raw is None:
-        session_string = await get_latest_session(db)
-        if session_string:
-            await telegram_manager.ensure_user_started(session_string)
-            clients = await telegram_manager.start()
-            if clients.user:
-                msg_obj = await clients.user.get_messages(chat_id=f.telegram_channel_id, message_ids=f.telegram_message_id)
-                if isinstance(msg_obj, list):
-                    msg_obj = msg_obj[0]
-                data = await clients.user.download_media(msg_obj, in_memory=True)
-                raw = _to_bytes(data)
+        raw = await _download_with_user(f, db)
 
     if raw is None:
         raise HTTPException(status_code=404, detail="File not found or cannot be downloaded")
