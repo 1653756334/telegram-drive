@@ -70,12 +70,20 @@ async def verify(payload: VerifyCodeRequest, db: AsyncSession = Depends(get_db))
         session_string = await temp_client.export_session_string()
         encrypted = encrypt(session_string, settings.session_secret)
 
+        # Get user info from Telegram
+        me = await temp_client.get_me()
+        telegram_username = me.username
+
         # Persist single-user data: create default user if not exists, store session
         result = await db.execute(select(User).limit(1))
         user = result.scalar_one_or_none()
         if not user:
-            user = User(username=None)
+            user = User(username=telegram_username)
             db.add(user)
+            await db.flush()
+        else:
+            # Update existing user with real Telegram info
+            user.username = telegram_username
             await db.flush()
 
         # Keep only one active session: delete old ones, then insert new

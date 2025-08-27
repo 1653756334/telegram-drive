@@ -20,11 +20,14 @@ from .db import get_db
 from .services import (
     get_latest_session,
     ensure_storage_channel,
-    ensure_directory,
+)
+from .services_nodes import (
     get_or_create_single_user,
+    ensure_directory,
     save_file_record,
     list_directory_entities,
     find_file_by_checksum,
+    get_file_by_path,
     delete_file_record,
     move_rename_file,
 )
@@ -142,11 +145,10 @@ async def upload(path: str, upload: UploadFile = File(...), db: AsyncSession = D
         user_row = await get_or_create_single_user(db)
 
         # 先检查同路径是否已有文件，避免触发唯一约束
-        from .services import get_file_by_path
         existing_same_path = await get_file_by_path(db, user_row.id, full_path)
         if existing_same_path:
             if existing_same_path.checksum == checksum:
-                return {"file_id": existing_same_path.id, "message_id": existing_same_path.telegram_message_id, "via": "exists"}
+                return {"file_id": str(existing_same_path.id), "message_id": existing_same_path.telegram_message_id, "via": "exists"}
             # 同路径有不同内容
             raise HTTPException(status_code=409, detail={
                 "code": "FILE_ALREADY_EXISTS",
@@ -163,14 +165,14 @@ async def upload(path: str, upload: UploadFile = File(...), db: AsyncSession = D
                 user_id=user_row.id,
                 directory_id=directory_id,
                 name=filename,
-                size=existing.size,
+                size=existing.size_bytes,
                 mime_type=upload.content_type or mimetypes.guess_type(filename)[0],
                 checksum=checksum,
                 path=full_path,
                 telegram_channel_id=existing.telegram_channel_id,
                 telegram_message_id=existing.telegram_message_id,
             )
-            return {"file_id": rec.id, "message_id": existing.telegram_message_id, "via": "instant"}
+            return {"file_id": str(rec.id), "message_id": existing.telegram_message_id, "via": "instant"}
 
         caption = json.dumps({"path": base_path, "name": filename, "size": size, "checksum": checksum})
 
@@ -409,7 +411,7 @@ async def upload(path: str, upload: UploadFile = File(...), db: AsyncSession = D
             telegram_message_id=int(msg.id),
         )
 
-        return {"file_id": rec.id, "message_id": int(msg.id), "via": via}
+        return {"file_id": str(rec.id), "message_id": int(msg.id), "via": via}
     finally:
         try:
             os.remove(temp_path)
@@ -523,12 +525,18 @@ async def _download_with_user(file_record, db: AsyncSession):
 
 
 @router.get("/id/{file_id}/download")
-async def download_by_id(file_id: int, db: AsyncSession = Depends(get_db)):
+async def download_by_id(file_id: str, db: AsyncSession = Depends(get_db)):
     # Locate file
     from sqlalchemy import select
-    from .models import File
+    from .models import Node
+    from uuid import UUID
 
-    res = await db.execute(select(File).where(File.id == file_id).limit(1))
+    try:
+        file_uuid = UUID(file_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file ID format")
+
+    res = await db.execute(select(Node).where(Node.id == file_uuid, Node.kind == "file").limit(1))
     f = res.scalar_one_or_none()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
@@ -553,7 +561,7 @@ async def download_by_id(file_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/id/{file_id}")
-async def delete_file(file_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_file(file_id: str, db: AsyncSession = Depends(get_db)):
     user_row = await get_or_create_single_user(db)
     ok = await delete_file_record(db, user_row.id, file_id)
     if not ok:
@@ -567,7 +575,7 @@ class MoveRenamePayload(BaseModel):
 
 
 @router.post("/id/{file_id}/move")
-async def move_or_rename(file_id: int, payload: MoveRenamePayload, db: AsyncSession = Depends(get_db)):
+async def move_or_rename(file_id: str, payload: MoveRenamePayload, db: AsyncSession = Depends(get_db)):
     user_row = await get_or_create_single_user(db)
     rec = await move_rename_file(
         db,
@@ -578,5 +586,5 @@ async def move_or_rename(file_id: int, payload: MoveRenamePayload, db: AsyncSess
     )
     if not rec:
         raise HTTPException(status_code=404, detail="File not found")
-    return {"id": rec.id, "name": rec.name, "path": rec.path}
+    return {"id": str(rec.id), "name": rec.name, "path": rec.path}
 
