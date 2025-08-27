@@ -57,7 +57,7 @@ import { api } from '../api/client'
 
 const currentPath = ref('/')
 const dirs = ref<{name:string, path:string}[]>([])
-const files = ref<{id:number, name:string, size:number, created_at:string}[]>([])
+const files = ref<{id:string, name:string, size:number, created_at:string}[]>([])
 const log = ref('')
 const pickedFile = ref<File | null>(null)
 
@@ -119,7 +119,7 @@ function parseFilenameFromCD(cd?: string | null): string | null {
   return null
 }
 
-async function download(id: number, fallbackName?: string) {
+async function download(id: string, fallbackName?: string) {
   try {
     const res = await api.get(`/files/id/${id}/download`, { responseType: 'blob' })
     const url = URL.createObjectURL(res.data)
@@ -133,7 +133,7 @@ async function download(id: number, fallbackName?: string) {
   }
 }
 
-async function rename(id: number) {
+async function rename(id: string) {
   const newName = prompt('输入新名称') || undefined
   if (!newName) return
   const { data } = await api.post(`/files/id/${id}/move`, { new_name: newName })
@@ -141,7 +141,7 @@ async function rename(id: number) {
   await refresh()
 }
 
-async function move(id: number) {
+async function move(id: string) {
   const newPath = prompt('输入新目录路径，如 /docs') || undefined
   if (!newPath) return
   const { data } = await api.post(`/files/id/${id}/move`, { new_dir_path: newPath })
@@ -149,7 +149,7 @@ async function move(id: number) {
   await refresh()
 }
 
-async function del(id: number) {
+async function del(id: string) {
   if (!confirm('确认删除？')) return
   const { data } = await api.delete(`/files/id/${id}`)
   log.value = JSON.stringify(data, null, 2)
