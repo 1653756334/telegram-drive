@@ -1,59 +1,76 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+"""Modern Telegram Drive Backend - Main Application."""
+
 from contextlib import asynccontextmanager
 
-from .telegram import telegram_manager
-from .routes_auth import router as auth_router
-from .routes_files import router as files_router
-from .config import get_settings
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from .config import get_settings, get_database
+from .presentation.api.v1 import auth, files
+from .core.exceptions import TelegramDriveException
+from .presentation.middleware.exception_handler import add_exception_handlers
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start telegram clients on startup
-    await telegram_manager.start()
-    try:
-        yield
-    finally:
-        # Stop telegram clients on shutdown
-        await telegram_manager.stop()
-
-
-app = FastAPI(title="Telegram Drive", version="0.1.0", lifespan=lifespan)
-
-# Enable permissive CORS for local dev and static file origins
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.middleware("http")
-async def api_token_middleware(request: Request, call_next):
+    """Application lifespan manager."""
+    # Startup
     settings = get_settings()
-    if settings.api_token:
-        # Skip auth for health and auth endpoints
-        path = request.url.path
-        if not (path.startswith("/health") or path.startswith("/auth/telegram")):
-            auth = request.headers.get("Authorization", "")
-            if not auth.startswith("Bearer ") or auth.split(" ", 1)[1] != settings.api_token:
-                raise HTTPException(status_code=401, detail="Unauthorized")
-    return await call_next(request)
+    db_manager = get_database()
+    db_manager.initialize(settings.database_url)
+    
+    yield
+    
+    # Shutdown
+    await db_manager.close()
 
 
-app.include_router(auth_router)
-app.include_router(files_router)
+def create_app() -> FastAPI:
+    """Create and configure FastAPI application."""
+    settings = get_settings()
+    
+    app = FastAPI(
+        title="Telegram Drive API",
+        description="Modern file storage system using Telegram as backend",
+        version="2.0.0",
+        lifespan=lifespan,
+        docs_url="/docs" if settings.debug else None,
+        redoc_url="/redoc" if settings.debug else None,
+    )
+    
+    # CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    # Exception handlers
+    add_exception_handlers(app)
+    
+    # API routes
+    from .presentation.api.v1 import channels
+    app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+    app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
+    app.include_router(channels.router, prefix="/api/v1/channels", tags=["Channels"])
+    
+    # Health check
+    @app.get("/health")
+    async def health_check():
+        """Health check endpoint."""
+        from datetime import datetime
+        from . import __version__
+        
+        return {
+            "status": "healthy",
+            "version": __version__,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    
+    return app
 
 
-@app.get("/health")
-async def health():
-    clients = await telegram_manager.start()
-    return {
-        "status": "ok",
-        "bot": bool(clients.bot.is_initialized),
-        "user": bool(clients.user.is_initialized) if clients.user else False,
-    }
-
+# Create application instance
+app = create_app()
