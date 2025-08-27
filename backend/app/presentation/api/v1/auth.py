@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ....config.logging import get_logger
 from ....application.schemas.auth import LoginRequest, VerifyCodeRequest, LoginResponse, UserResponse
 from ....application.schemas.common import SuccessResponse
 from ....application.use_cases import AuthUseCases
@@ -11,6 +12,7 @@ from ....infrastructure.telegram.client import telegram_client_manager
 from ....core.dependencies import get_db, verify_api_auth
 from ....core.exceptions import AuthenticationError, TelegramError
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 
@@ -29,6 +31,7 @@ async def send_login_code(
     """Send login verification code to phone number."""
     try:
         result = await auth_use_cases.send_login_code(request.phone)
+        logger.debug(f"Verification code sent to: {request.phone}")
         return SuccessResponse(
             message="Verification code sent successfully",
             data=result

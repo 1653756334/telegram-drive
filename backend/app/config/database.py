@@ -20,9 +20,10 @@ class DatabaseManager:
     
     def initialize(self, database_url: str) -> None:
         """Initialize database engine and session factory."""
+        settings = get_settings()
         self._engine = create_async_engine(
             database_url,
-            echo=get_settings().debug,
+            echo=settings.log_level == "DEBUG",
             future=True
         )
         self._session_factory = async_sessionmaker(

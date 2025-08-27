@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     storage_channel_username: Optional[str] = Field(None, description="Storage channel username")
 
     # Application
-    debug: bool = Field(False, description="Debug mode")
+    log_level: str = Field("INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR)")
     cors_origins: list[str] = Field(["*"], description="CORS allowed all origins")
 
     @field_validator('storage_channel_id', mode='before')
@@ -57,13 +57,28 @@ class Settings(BaseSettings):
             return None
         return str(v).strip()
 
+    @field_validator('log_level', mode='before')
+    @classmethod
+    def validate_log_level(cls, v) -> str:
+        """Validate log level."""
+        if isinstance(v, str):
+            level = v.upper()
+            if level in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
+                return level
+        return 'INFO'
+
     class Config:
         env_file = ".env"
         env_prefix = "TGDRIVE_"
         case_sensitive = False
 
 
+def _create_settings() -> Settings:
+    """Create settings instance from environment variables."""
+    return Settings()  # type: ignore[call-arg]
+
+
 @lru_cache()
 def get_settings() -> Settings:
     """Get cached application settings."""
-    return Settings()
+    return _create_settings()

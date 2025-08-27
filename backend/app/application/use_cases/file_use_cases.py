@@ -8,10 +8,13 @@ from datetime import datetime
 
 from fastapi import UploadFile
 
+from ...config.logging import get_logger
 from ...domain.entities import Node, NodeType
 from ...domain.repositories import UserRepository, NodeRepository, ChannelRepository
 from ...infrastructure.telegram import TelegramManager
 from ...core.exceptions import NotFoundError, ValidationError, StorageError, ConflictError
+
+logger = get_logger(__name__)
 
 
 class FileUseCases:
@@ -85,10 +88,12 @@ class FileUseCases:
     async def upload_file(self, path: str, file: UploadFile) -> Dict[str, Any]:
         """Upload a file to specified path."""
         try:
+            logger.info(f"Starting file upload: {file.filename} to {path}")
+
             # Validate inputs
             if not file.filename:
                 raise ValidationError("Filename is required")
-            
+
             path = self._normalize_path(path)
             user = await self.user_repository.get_or_create_single_user()
             
@@ -110,6 +115,7 @@ class FileUseCases:
             existing_same_path = await self.node_repository.get_by_path(user.id, full_path, NodeType.FILE)
             if existing_same_path:
                 if existing_same_path.checksum == checksum:
+                    logger.info(f"File already exists with same content: {full_path}")
                     return {
                         "file_id": str(existing_same_path.id),
                         "message_id": existing_same_path.telegram_message_id or 0,
@@ -120,10 +126,11 @@ class FileUseCases:
                     }
                 else:
                     raise ConflictError(f"File already exists at path: {full_path}")
-            
+
             # Check for deduplication
             existing_file = await self.node_repository.get_by_checksum(user.id, checksum)
             if existing_file:
+                logger.debug(f"File deduplication found for: {file.filename}")
                 # Create new node pointing to same Telegram message
                 directory_id = await self.node_repository.ensure_directory_path(user.id, path)
                 
@@ -166,7 +173,13 @@ class FileUseCases:
             # Upload to Telegram
             use_user_client = file_size > 50 * 1024 * 1024  # > 50MB
             channel_identifier = channel.get_identifier()
-            
+
+            # INFO level: Basic upload information
+            logger.info(f"Uploading file: {file.filename} ({self._format_file_size(file_size)}) to channel {channel_identifier}")
+
+            # DEBUG level: Detailed upload information
+            logger.debug(f"Upload details - Path: {full_path}, Client: {'user' if use_user_client else 'bot'}, Channel: {channel.title or 'Unknown'}")
+
             file_io.seek(0)
             message = await self.telegram_manager.upload_file(
                 file_data=file_io,
@@ -175,6 +188,8 @@ class FileUseCases:
                 caption=f"File: {file.filename}",
                 use_user_client=use_user_client
             )
+
+            logger.debug(f"Telegram upload successful: message_id={message.id}")
             
             # Create node record
             new_node = Node(
@@ -209,9 +224,24 @@ class FileUseCases:
             raise
         except Exception as e:
             raise StorageError(f"File upload failed: {e}")
-    
+
+    def _format_file_size(self, size_bytes: int) -> str:
+        """Format file size in human readable format."""
+        if size_bytes == 0:
+            return "0 B"
+
+        size_names = ["B", "KB", "MB", "GB", "TB"]
+        import math
+        i = int(math.floor(math.log(size_bytes, 1024)))
+        p = math.pow(1024, i)
+        s = round(size_bytes / p, 2)
+        return f"{s} {size_names[i]}"
+
     async def download_file(self, file_id: str) -> Tuple[bytes, str]:
         """Download file by ID."""
+        # INFO level: Basic download request
+        logger.info(f"Download request for file: {file_id}")
+
         try:
             file_uuid = UUID(file_id)
         except ValueError:
@@ -220,6 +250,10 @@ class FileUseCases:
         try:
             user = await self.user_repository.get_or_create_single_user()
             node = await self.node_repository.get_by_id(file_uuid)
+
+            if node:
+                # DEBUG level: File details
+                logger.debug(f"Found file: {node.name} ({self._format_file_size(node.size_bytes or 0)}) in {node.path}")
 
             if not node or node.user_id != user.id:
                 raise NotFoundError("File not found")
@@ -242,21 +276,33 @@ class FileUseCases:
             channel_identifier = channel.get_identifier()
             use_user_client = node.size_bytes > 50 * 1024 * 1024
 
+            logger.info(f"Downloading from Telegram: {node.name} via {'user' if use_user_client else 'bot'} client")
+
             try:
+                # DEBUG level: Download attempt details
+                logger.debug(f"Downloading from Telegram - Channel: {channel_identifier}, Message: {node.telegram_message_id}, Client: {'user' if use_user_client else 'bot'}")
+
                 file_data = await self.telegram_manager.download_file(
                     channel_id=channel_identifier,
                     message_id=node.telegram_message_id,
                     use_user_client=use_user_client
                 )
+
+                # INFO level: Download success
+                logger.info(f"Download completed: {node.name} ({self._format_file_size(len(file_data))})")
                 return file_data, node.name
-            except Exception:
+
+            except Exception as e:
+                logger.warning(f"Download failed with {channel_identifier}, trying fallback: {e}")
                 # Fallback to channel ID if username fails
                 if channel_identifier != channel.channel_id:
+                    logger.debug(f"Attempting fallback download with channel ID: {channel.channel_id}")
                     file_data = await self.telegram_manager.download_file(
                         channel_id=channel.channel_id,
                         message_id=node.telegram_message_id,
                         use_user_client=use_user_client
                     )
+                    logger.info(f"Fallback download completed: {node.name} ({self._format_file_size(len(file_data))})")
                     return file_data, node.name
                 raise
 

@@ -8,7 +8,10 @@ from typing import Optional
 from pyrogram.client import Client
 
 from ...config import get_settings
+from ...config.logging import get_logger
 from ...core.exceptions import TelegramError
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -37,6 +40,7 @@ class TelegramClientManager:
         async with self._lock:
             if self._bot is None:
                 try:
+                    logger.debug("Starting Telegram bot client...")
                     # Persist bot session on disk to avoid FloodWait due to frequent re-authorization
                     self._bot = Client(
                         name="tgdrive-bot",
@@ -46,7 +50,9 @@ class TelegramClientManager:
                         workdir=str(self._workdir),
                     )
                     await self._bot.start()
+                    logger.info("Telegram bot client started successfully")
                 except Exception as e:
+                    logger.error(f"Failed to start bot client: {e}")
                     raise TelegramError(f"Failed to start bot client: {e}")
 
             # user client started lazily via ensure_user_started()
@@ -56,9 +62,11 @@ class TelegramClientManager:
         """Start a user client in-memory using the provided session string (no local persistence)."""
         async with self._lock:
             if self._user is not None:
+                logger.debug("User client already started")
                 return  # Already started
 
             try:
+                logger.debug("Starting Telegram user client...")
                 self._user = Client(
                     name="tgdrive-user",
                     api_id=self.settings.api_id,
@@ -67,7 +75,9 @@ class TelegramClientManager:
                     in_memory=True,  # No local persistence
                 )
                 await self._user.start()
+                logger.info("Telegram user client started successfully")
             except Exception as e:
+                logger.error(f"Failed to start user client: {e}")
                 self._user = None
                 raise TelegramError(f"Failed to start user client: {e}")
 
@@ -78,7 +88,7 @@ class TelegramClientManager:
                 try:
                     await self._user.stop()
                 except Exception as e:
-                    print(f"Warning: Error stopping user client: {e}")
+                    logger.warning(f"Error stopping user client: {e}")
                 finally:
                     self._user = None
 
@@ -86,7 +96,7 @@ class TelegramClientManager:
                 try:
                     await self._bot.stop()
                 except Exception as e:
-                    print(f"Warning: Error stopping bot client: {e}")
+                    logger.warning(f"Error stopping bot client: {e}")
                 finally:
                     self._bot = None
 

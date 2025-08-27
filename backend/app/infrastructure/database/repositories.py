@@ -7,10 +7,13 @@ from uuid import UUID
 from sqlalchemy import select, update, delete, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...config.logging import get_logger
 from ...domain.entities import User, Node, NodeType, TelegramChannel
 from ...domain.repositories import UserRepository, NodeRepository, ChannelRepository
 from ...core.exceptions import NotFoundError
 from .models import UserModel, NodeModel, TelegramChannelModel
+
+logger = get_logger(__name__)
 
 
 class UserRepositoryImpl(UserRepository):

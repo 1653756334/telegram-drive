@@ -89,21 +89,30 @@ class AuthUseCases:
             # Get user info
             me = await temp_client.get_me()
             telegram_username = me.username
-            
+            telegram_user_id = me.id
+
+            # INFO level: Successful login
+            logger.info(f"User login successful: {phone}")
+
+            # DEBUG level: Telegram user details
+            logger.debug(f"Telegram user authenticated - ID: {telegram_user_id}, Username: {telegram_username or 'None'}, Phone: {phone}")
+
             # Export session string
             session_string = await temp_client.export_session_string()
             encrypted_session = encrypt(session_string, self.settings.session_secret)
-            
+
             # Get or create user
             user = await self.user_repository.get_or_create_single_user()
-            
+
             # Update user with Telegram info
             if telegram_username and user.username != telegram_username:
+                logger.debug(f"Updating user username from '{user.username}' to '{telegram_username}'")
                 user.update_username(telegram_username)
                 await self.user_repository.update(user)
-            
+
             # Start user client with new session
             await self.telegram_manager.ensure_user_started(session_string)
+            logger.debug("User Telegram client started successfully")
             
             return {
                 "session_encrypted": encrypted_session,

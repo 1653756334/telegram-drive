@@ -106,4 +106,8 @@ TGDRIVE_DATABASE_URL=postgresql+asyncpg://user:pass@localhost/db
 TGDRIVE_STORAGE_CHANNEL_USERNAME=@your_channel
 # 或者
 TGDRIVE_STORAGE_CHANNEL_ID=-100xxxxxxxxx
+
+# 应用设置
+TGDRIVE_LOG_LEVEL=INFO  # 日志级别: DEBUG, INFO, WARNING, ERROR
+TGDRIVE_CORS_ORIGINS=["*"]
 ```

@@ -11,8 +11,11 @@ from typing import Optional, Tuple, BinaryIO
 from pyrogram.client import Client
 from pyrogram.types import Message
 
+from ...config.logging import get_logger
 from ...core.exceptions import TelegramError, StorageError
 from .client import TelegramClientManager
+
+logger = get_logger(__name__)
 
 
 class TelegramManager:
@@ -33,9 +36,12 @@ class TelegramManager:
         try:
             clients = await self.client_manager.start()
             client = clients.user if use_user_client and clients.user else clients.bot
-            
+
             if not client:
                 raise TelegramError("No available client for upload")
+
+            # DEBUG level: Upload preparation details
+            logger.debug(f"Telegram upload starting - File: {filename}, Channel: {channel_id}, Client: {'user' if use_user_client else 'bot'}")
             
             # Determine file type and upload method
             mime_type = mimetypes.guess_type(filename)[0]
@@ -98,7 +104,10 @@ class TelegramManager:
                         file_name=filename,
                         caption=caption
                     )
-                
+
+                # DEBUG level: Upload success details
+                logger.debug(f"Telegram upload completed - Message ID: {message.id}, File: {filename}")
+
                 return message
                 
             finally:
@@ -125,6 +134,9 @@ class TelegramManager:
             if not client:
                 raise TelegramError("No available client for download")
 
+            # DEBUG level: Download preparation details
+            logger.debug(f"Telegram download starting - Channel: {channel_id}, Message: {message_id}, Client: {'user' if use_user_client else 'bot'}")
+
             # Get message
             message = await client.get_messages(chat_id=channel_id, message_ids=message_id)
             if isinstance(message, list):
@@ -144,6 +156,9 @@ class TelegramManager:
                 # Read file content
                 with open(downloaded_path, 'rb') as f:
                     file_data = f.read()
+
+                # DEBUG level: Download success details
+                logger.debug(f"Telegram download completed - Size: {len(file_data)} bytes")
 
                 return file_data
 
@@ -191,7 +206,7 @@ class TelegramManager:
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if result.returncode != 0:
-                print(f"DEBUG: ffprobe failed: {result.stderr}")
+                logger.debug(f"ffprobe failed: {result.stderr}")
                 return {}
             
             data = json.loads(result.stdout)
@@ -217,7 +232,7 @@ class TelegramManager:
                 'height': height,
             }
         except Exception as e:
-            print(f"DEBUG: Video metadata extraction failed: {e}")
+            logger.debug(f"Video metadata extraction failed: {e}")
             return {}
     
     def _generate_video_thumbnail(self, video_path: str) -> Optional[str]:
@@ -232,8 +247,8 @@ class TelegramManager:
             if result.returncode == 0 and os.path.exists(thumb_path):
                 return thumb_path
             else:
-                print(f"DEBUG: Thumbnail generation failed: {result.stderr}")
+                logger.debug(f"Thumbnail generation failed: {result.stderr}")
                 return None
         except Exception as e:
-            print(f"DEBUG: Thumbnail generation error: {e}")
+            logger.debug(f"Thumbnail generation error: {e}")
             return None

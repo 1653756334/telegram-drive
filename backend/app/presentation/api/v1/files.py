@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ....config.logging import get_logger
 from ....application.schemas.file import (
     DirectoryListResponse,
     UploadResponse,
@@ -20,6 +21,7 @@ from ....infrastructure.telegram.manager import TelegramManager
 from ....core.dependencies import get_db, verify_api_auth
 from ....core.exceptions import NotFoundError, ValidationError, StorageError, ConflictError
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 
@@ -60,10 +62,14 @@ async def list_directory(
     """List files and directories in specified path."""
     try:
         result = await file_use_cases.list_directory(path)
+        # DEBUG level: Directory listing details
+        logger.debug(f"Directory listing - Path: {path}, Files: {result['total_files']}, Total size: {result['total_size']} bytes")
         return DirectoryListResponse(**result)
     except NotFoundError as e:
+        logger.warning(f"Directory not found: {path}")
         raise HTTPException(status_code=404, detail=str(e))
     except ValidationError as e:
+        logger.warning(f"Invalid directory path: {path} - {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -82,6 +88,7 @@ async def upload_file(
 
         # Upload file
         result = await file_use_cases.upload_file(path, file)
+        logger.debug(f"Uploaded file: {file.filename} ({result.get('size', 0)} bytes)")
         return UploadResponse(**result)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -100,6 +107,8 @@ async def download_file(
     """Download file by ID."""
     try:
         file_data, filename = await file_use_cases.download_file(file_id)
+        # DEBUG level: Download API response details
+        logger.debug(f"Download API response - File: {filename}, Size: {len(file_data)} bytes")
 
         # Build RFC 5987 compatible header
         from urllib.parse import quote
