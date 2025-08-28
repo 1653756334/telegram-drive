@@ -1,10 +1,10 @@
 """Repository implementations using SQLAlchemy."""
 
-from datetime import datetime
-from typing import Optional, List
+from datetime import datetime, timezone
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 
-from sqlalchemy import select, update, delete, and_
+from sqlalchemy import select, update, delete, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.logging import get_logger
@@ -37,24 +37,59 @@ class UserRepositoryImpl(UserRepository):
         )
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
+
+    async def get_by_username(self, username: str) -> Optional[UserModel]:
+        """Get user by username."""
+        result = await self.session.execute(
+            select(UserModel).where(UserModel.username == username)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_email(self, email: str) -> Optional[UserModel]:
+        """Get user by email."""
+        result = await self.session.execute(
+            select(UserModel).where(UserModel.email == email)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_username_or_email(self, identifier: str) -> Optional[UserModel]:
+        """Get user by username or email."""
+        result = await self.session.execute(
+            select(UserModel).where(
+                or_(UserModel.username == identifier, UserModel.email == identifier)
+            )
+        )
+        return result.scalar_one_or_none()
     
-    async def create(self, username: Optional[str] = None) -> User:
+    async def create(self, user_data: Optional[Dict[str, Any]] = None, username: Optional[str] = None) -> UserModel:
         """Create new user."""
-        model = UserModel(username=username or "default_user")
+        if user_data:
+            # New method with full user data
+            model = UserModel(**user_data)
+        else:
+            # Legacy method for backward compatibility
+            model = UserModel(username=username or "default_user")
+
         self.session.add(model)
         await self.session.flush()
         await self.session.refresh(model)
         await self.session.commit()
-        return self._to_entity(model)
+        return model
     
-    async def update(self, user: User) -> User:
+    async def update(self, user: UserModel) -> UserModel:
         """Update existing user."""
         await self.session.execute(
             update(UserModel)
             .where(UserModel.id == user.id)
             .values(
                 username=user.username,
-                updated_at=datetime.utcnow()
+                email=user.email,
+                password_hash=user.password_hash,
+                display_name=user.display_name,
+                role=user.role,
+                status=user.status,
+                last_login_at=user.last_login_at,
+                updated_at=datetime.now(timezone.utc)
             )
         )
         await self.session.commit()
@@ -80,8 +115,14 @@ class UserRepositoryImpl(UserRepository):
         return User(
             id=model.id,
             username=model.username,
+            email=model.email,
+            password_hash=model.password_hash,
+            display_name=model.display_name,
+            role=model.role.value if hasattr(model.role, 'value') else model.role,
+            status=model.status.value if hasattr(model.status, 'value') else model.status,
             created_at=model.created_at,
-            updated_at=model.updated_at
+            updated_at=model.updated_at,
+            last_login_at=model.last_login_at
         )
 
 

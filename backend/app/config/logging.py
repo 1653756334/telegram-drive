@@ -113,6 +113,12 @@ def configure_loggers(log_level: str) -> None:
     logging.getLogger('uvicorn.error').setLevel(logging.INFO)
     logging.getLogger('fastapi').setLevel(logging.INFO)
 
+    # Multipart parser - silence DEBUG logs to reduce noise during file uploads
+    logging.getLogger('multipart').setLevel(logging.WARNING)
+    logging.getLogger('multipart.multipart').setLevel(logging.WARNING)
+    logging.getLogger('python_multipart').setLevel(logging.WARNING)
+    logging.getLogger('python_multipart.multipart').setLevel(logging.WARNING)
+
     # Configure application loggers based on level
     if log_level == 'DEBUG':
         # DEBUG level: Enable detailed logging for key components

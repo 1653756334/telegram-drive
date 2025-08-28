@@ -204,12 +204,19 @@ class TelegramManager:
                 'ffprobe', '-v', 'quiet', '-print_format', 'json', 
                 '-show_format', '-show_streams', video_path
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, timeout=30)
             if result.returncode != 0:
-                logger.debug(f"ffprobe failed: {result.stderr}")
+                stderr_text = result.stderr.decode('utf-8', errors='ignore')
+                logger.debug(f"ffprobe failed: {stderr_text}")
                 return {}
-            
-            data = json.loads(result.stdout)
+
+            # Decode stdout as UTF-8 to avoid encoding issues
+            stdout_text = result.stdout.decode('utf-8', errors='ignore')
+            if not stdout_text.strip():
+                logger.debug("ffprobe returned empty output")
+                return {}
+
+            data = json.loads(stdout_text)
             video_stream = None
             
             # Find the first video stream
@@ -247,7 +254,8 @@ class TelegramManager:
             if result.returncode == 0 and os.path.exists(thumb_path):
                 return thumb_path
             else:
-                logger.debug(f"Thumbnail generation failed: {result.stderr}")
+                stderr_text = result.stderr.decode('utf-8', errors='ignore') if result.stderr else 'Unknown error'
+                logger.debug(f"Thumbnail generation failed: {stderr_text}")
                 return None
         except Exception as e:
             logger.debug(f"Thumbnail generation error: {e}")

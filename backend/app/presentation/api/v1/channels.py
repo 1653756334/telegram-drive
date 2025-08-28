@@ -9,7 +9,7 @@ from ....application.use_cases import ChannelUseCases
 from ....infrastructure.database.repositories import UserRepositoryImpl, ChannelRepositoryImpl
 from ....infrastructure.telegram.client import telegram_client_manager
 from ....infrastructure.telegram.manager import TelegramManager
-from ....core.dependencies import get_db, verify_api_auth
+from ....core.dependencies import get_db
 from ....core.exceptions import NotFoundError, ValidationError, TelegramError, ConflictError
 
 router = APIRouter()
@@ -30,8 +30,7 @@ def get_channel_use_cases(db: AsyncSession = Depends(get_db)) -> ChannelUseCases
 
 @router.post("/ensure", response_model=SuccessResponse)
 async def ensure_storage_channel(
-    channel_use_cases: ChannelUseCases = Depends(get_channel_use_cases),
-    _: None = Depends(verify_api_auth)
+    channel_use_cases: ChannelUseCases = Depends(get_channel_use_cases)
 ):
     """Ensure storage channel exists."""
     try:
@@ -48,8 +47,7 @@ async def ensure_storage_channel(
 
 @router.get("/")
 async def list_channels(
-    channel_use_cases: ChannelUseCases = Depends(get_channel_use_cases),
-    _: None = Depends(verify_api_auth)
+    channel_use_cases: ChannelUseCases = Depends(get_channel_use_cases)
 ):
     """List all channels for current user."""
     try:
@@ -63,8 +61,7 @@ async def list_channels(
 async def add_channel(
     identifier: str = Query(..., description="Channel ID or username"),
     title: str = Query(None, description="Optional channel title"),
-    channel_use_cases: ChannelUseCases = Depends(get_channel_use_cases),
-    _: None = Depends(verify_api_auth)
+    channel_use_cases: ChannelUseCases = Depends(get_channel_use_cases)
 ):
     """Add a new channel."""
     try:
@@ -91,8 +88,7 @@ async def add_channel(
 @router.delete("/{channel_id}", response_model=SuccessResponse)
 async def remove_channel(
     channel_id: int,
-    channel_use_cases: ChannelUseCases = Depends(get_channel_use_cases),
-    _: None = Depends(verify_api_auth)
+    channel_use_cases: ChannelUseCases = Depends(get_channel_use_cases)
 ):
     """Remove a channel."""
     try:

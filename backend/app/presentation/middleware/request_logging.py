@@ -42,12 +42,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 status_code = response.status_code
                 logger.info(f"{method} {path} end - {status_code} - {process_time:.3f}s")
                 
-                # DEBUG level: Log response details
-                if logger.isEnabledFor(10):  # DEBUG level
-                    content_length = response.headers.get("content-length", "unknown")
-                    content_type = response.headers.get("content-type", "unknown")
-                    logger.debug(f"Response details {path} - Size: {content_length}, Type: {content_type}")
-            
             # Add response time header
             response.headers["X-Process-Time"] = str(process_time)
             

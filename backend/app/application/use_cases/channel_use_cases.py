@@ -1,5 +1,6 @@
 """Channel management use cases."""
 
+from datetime import datetime
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 
@@ -190,7 +191,6 @@ class ChannelUseCases:
             resolved_username = None
         
         # Create new channel record
-        from datetime import datetime
         channel = TelegramChannel(
             id=0,  # Will be set by database
             user_id=user_id,

@@ -171,14 +171,17 @@ class FileUseCases:
             directory_id = await self.node_repository.ensure_directory_path(user.id, path)
             
             # Upload to Telegram
-            use_user_client = file_size > 50 * 1024 * 1024  # > 50MB
+            # Auto-determine client strategy based on file size
+            use_user_client = file_size > 50 * 1024 * 1024  # > 50MB use user client, <= 50MB use bot
+            strategy_name = "user" if use_user_client else "bot"
+
             channel_identifier = channel.get_identifier()
 
             # INFO level: Basic upload information
-            logger.info(f"Uploading file: {file.filename} ({self._format_file_size(file_size)}) to channel {channel_identifier}")
+            logger.info(f"Uploading file: {file.filename} ({self._format_file_size(file_size)}) to channel {channel_identifier} using {strategy_name} strategy")
 
             # DEBUG level: Detailed upload information
-            logger.debug(f"Upload details - Path: {full_path}, Client: {'user' if use_user_client else 'bot'}, Channel: {channel.title or 'Unknown'}")
+            logger.debug(f"Upload details - Path: {full_path}, Client: {strategy_name}, Channel: {channel.title or 'Unknown'}, Auto-selected based on file size")
 
             file_io.seek(0)
             message = await self.telegram_manager.upload_file(
@@ -214,7 +217,7 @@ class FileUseCases:
             return {
                 "file_id": str(created_node.id),
                 "message_id": message.id,
-                "via": "user" if use_user_client else "bot",
+                "via": strategy_name,
                 "name": created_node.name,
                 "size": created_node.size_bytes,
                 "path": created_node.path

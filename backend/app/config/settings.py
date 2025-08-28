@@ -17,7 +17,14 @@ class Settings(BaseSettings):
 
     # Security
     session_secret: str = Field(..., description="Session encryption secret")
-    api_token: Optional[str] = Field(None, description="Optional API authentication token")
+
+    # JWT Settings
+    jwt_secret_key: Optional[str] = Field(None, description="JWT secret key")
+    jwt_algorithm: str = Field("HS256", description="JWT algorithm")
+    access_token_expire_minutes: int = Field(30, description="Access token expiration in minutes")
+
+    # Admin Configuration
+    admin_username: str = Field(..., description="Admin username")
 
     # Database
     database_url: str = Field(..., description="Database connection URL")
@@ -49,13 +56,7 @@ class Settings(BaseSettings):
             return None
         return str(v).strip()
 
-    @field_validator('api_token', mode='before')
-    @classmethod
-    def validate_api_token(cls, v) -> Optional[str]:
-        """Validate API token, handle empty strings."""
-        if v is None or v == '' or v == 'None':
-            return None
-        return str(v).strip()
+    # API token验证器已移除，因为不再使用API token认证
 
     @field_validator('log_level', mode='before')
     @classmethod

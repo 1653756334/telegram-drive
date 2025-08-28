@@ -18,7 +18,7 @@ from ....application.use_cases import FileUseCases, ChannelUseCases
 from ....infrastructure.database.repositories import UserRepositoryImpl, NodeRepositoryImpl, ChannelRepositoryImpl
 from ....infrastructure.telegram.client import telegram_client_manager
 from ....infrastructure.telegram.manager import TelegramManager
-from ....core.dependencies import get_db, verify_api_auth
+from ....core.dependencies import get_db
 from ....core.exceptions import NotFoundError, ValidationError, StorageError, ConflictError
 
 logger = get_logger(__name__)
@@ -56,8 +56,7 @@ def get_channel_use_cases(db: AsyncSession = Depends(get_db)) -> ChannelUseCases
 @router.get("/", response_model=DirectoryListResponse)
 async def list_directory(
     path: str = Query("/", description="Directory path to list"),
-    file_use_cases: FileUseCases = Depends(get_file_use_cases),
-    _: None = Depends(verify_api_auth)
+    file_use_cases: FileUseCases = Depends(get_file_use_cases)
 ):
     """List files and directories in specified path."""
     try:
@@ -78,17 +77,16 @@ async def upload_file(
     path: str = Query(..., description="Upload path"),
     file: UploadFile = File(...),
     file_use_cases: FileUseCases = Depends(get_file_use_cases),
-    channel_use_cases: ChannelUseCases = Depends(get_channel_use_cases),
-    _: None = Depends(verify_api_auth)
+    channel_use_cases: ChannelUseCases = Depends(get_channel_use_cases)
 ):
     """Upload a file to specified path."""
     try:
         # Ensure storage channel exists
         await channel_use_cases.ensure_storage_channel()
 
-        # Upload file
+        # Upload file with strategy
         result = await file_use_cases.upload_file(path, file)
-        logger.debug(f"Uploaded file: {file.filename} ({result.get('size', 0)} bytes)")
+        logger.debug(f"Uploaded file: {file.filename} ({result.get('size', 0)} bytes) using {result.get('via', 'auto')} strategy")
         return UploadResponse(**result)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -101,8 +99,7 @@ async def upload_file(
 @router.get("/id/{file_id}/download")
 async def download_file(
     file_id: str,
-    file_use_cases: FileUseCases = Depends(get_file_use_cases),
-    _: None = Depends(verify_api_auth)
+    file_use_cases: FileUseCases = Depends(get_file_use_cases)
 ):
     """Download file by ID."""
     try:
@@ -139,8 +136,7 @@ async def download_file(
 async def move_file(
     file_id: str,
     request: MoveRequest,
-    file_use_cases: FileUseCases = Depends(get_file_use_cases),
-    _: None = Depends(verify_api_auth)
+    file_use_cases: FileUseCases = Depends(get_file_use_cases)
 ):
     """Move or rename file."""
     try:
@@ -161,8 +157,7 @@ async def move_file(
 @router.delete("/id/{file_id}", response_model=DeleteResponse)
 async def delete_file(
     file_id: str,
-    file_use_cases: FileUseCases = Depends(get_file_use_cases),
-    _: None = Depends(verify_api_auth)
+    file_use_cases: FileUseCases = Depends(get_file_use_cases)
 ):
     """Delete file by ID."""
     try:

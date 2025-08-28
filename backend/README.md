@@ -97,7 +97,14 @@ TGDRIVE_BOT_TOKEN=your_bot_token
 
 # 安全设置
 TGDRIVE_SESSION_SECRET=your_secret_key
-TGDRIVE_API_TOKEN=optional_api_token
+
+# JWT认证设置
+TGDRIVE_JWT_SECRET_KEY=your-super-secret-jwt-key
+TGDRIVE_JWT_ALGORITHM=HS256
+TGDRIVE_ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# 管理员配置
+TGDRIVE_ADMIN_USERNAME=admin
 
 # 数据库
 TGDRIVE_DATABASE_URL=postgresql+asyncpg://user:pass@localhost/db

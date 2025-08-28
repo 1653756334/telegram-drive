@@ -67,10 +67,12 @@ def create_app() -> FastAPI:
     add_exception_handlers(app)
 
     # API routes
-    from .presentation.api.v1 import channels
+    from .presentation.api.v1 import channels, admin, telegram
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
     app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
     app.include_router(channels.router, prefix="/api/v1/channels", tags=["Channels"])
+    app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+    app.include_router(telegram.router, prefix="/api/v1/telegram", tags=["Telegram"])
     
     # Health check
     @app.get("/health")
